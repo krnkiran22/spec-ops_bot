@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TicketType {
+  SALARY
+  REIMBURSEMENT
+  ATTENDANCE
+  GENERAL
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  PENDING_USER
+  RESOLVED
+  ESCALATED
+}
+
+model Ticket {
+  id          Int          @id @default(autoincrement())
+  ticketRef   String       @unique  // e.g., "T-0042"
+  type        TicketType
+  subject     String
+  description String
+  status      TicketStatus @default(OPEN)
+
+  // Discord identifiers
+  raisedById  String       // Discord user ID
+  raisedByTag String       // Discord username#discriminator
+  guildId     String       // Discord server ID
+  channelId   String       // Source channel ID (#raise-a-ticket)
+  threadId    String?      // Private thread ID (created by bot)
+
+  // Assignment
+  assignedTo    String?    // Discord user ID of assigned ops member
+  assignedToTag String?
+
+  // Category-specific extra fields stored as JSON
+  extraData   Json?
+
+  // Timestamps
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  resolvedAt  DateTime?
+
+  comments    TicketComment[]
+
+  @@index([guildId])
+  @@index([raisedById])
+  @@index([status])
+}
+
+model TicketComment {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId  String
+  authorTag String
+  content   String
+  createdAt DateTime @default(now())
+}
+
+// Tracks which channel has the ticket-raise message per guild
+model TicketSetup {
+  id          Int    @id @default(autoincrement())
+  guildId     String @unique
+  channelId   String
+  messageId   String // The pinned bot message with the raise button
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Counter for generating sequential ticket IDs per guild
+model TicketCounter {
+  guildId String @id
+  count   Int    @default(0)
+}
